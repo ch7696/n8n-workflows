@@ -1,12 +1,14 @@
 {
-  "name": "生产级AI编码流水线",
   "nodes": [
     {
       "id": "node-manual-trigger",
       "name": "手动触发",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
-      "position": [100, 300],
+      "position": [
+        100,
+        300
+      ],
       "parameters": {}
     },
     {
@@ -14,7 +16,10 @@
       "name": "全局配置",
       "type": "n8n-nodes-base.set",
       "typeVersion": 1,
-      "position": [300, 300],
+      "position": [
+        300,
+        300
+      ],
       "parameters": {
         "values": {
           "string": [
@@ -67,7 +72,10 @@
       "name": "循环控制器",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [500, 300],
+      "position": [
+        500,
+        300
+      ],
       "parameters": {
         "conditions": {
           "boolean": [
@@ -95,7 +103,10 @@
       "name": "增加循环计数",
       "type": "n8n-nodes-base.set",
       "typeVersion": 1,
-      "position": [700, 400],
+      "position": [
+        700,
+        400
+      ],
       "parameters": {
         "values": {
           "number": [
@@ -118,7 +129,10 @@
       "name": "主编码代理(DeepSeek)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
-      "position": [900, 400],
+      "position": [
+        900,
+        400
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://api.deepseek.com/v1/chat/completions",
@@ -169,7 +183,10 @@
       "name": "编码器故障转移检查",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [1100, 400],
+      "position": [
+        1100,
+        400
+      ],
       "parameters": {
         "conditions": {
           "string": [
@@ -189,7 +206,10 @@
       "name": "备用编码代理(Minimax)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
-      "position": [1300, 500],
+      "position": [
+        1300,
+        500
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://api.minimax.chat/v1/text/chatcompletion_v2",
@@ -239,7 +259,10 @@
       "name": "合并编码结果",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 2,
-      "position": [1500, 400],
+      "position": [
+        1500,
+        400
+      ],
       "parameters": {
         "mode": "combine",
         "mergeByFields": {
@@ -256,7 +279,10 @@
       "name": "提取生成的代码",
       "type": "n8n-nodes-base.code",
       "typeVersion": 1,
-      "position": [1700, 400],
+      "position": [
+        1700,
+        400
+      ],
       "parameters": {
         "jsCode": "// 从AI响应中提取代码\nconst response = $input.first().json;\nlet generatedCode = '';\n\n// 尝试从不同的API响应格式中提取代码\nif (response.choices && response.choices[0]) {\n  generatedCode = response.choices[0].message.content;\n} else if (response.reply) {\n  generatedCode = response.reply;\n} else if (response.text) {\n  generatedCode = response.text;\n}\n\n// 提取代码块（如果被markdown包裹）\nconst codeBlockMatch = generatedCode.match(/```(?:python)?\\n([\\s\\S]*?)\\n```/);\nif (codeBlockMatch) {\n  generatedCode = codeBlockMatch[1];\n}\n\nreturn {\n  json: {\n    generated_code: generatedCode.trim(),\n    goal: $json.goal,\n    current_loop: $json.current_loop,\n    max_loops: $json.max_loops,\n    repo_owner: $json.repo_owner,\n    repo_name: $json.repo_name,\n    output_path: $json.output_path,\n    branch: $json.branch\n  }\n};"
       },
@@ -269,7 +295,10 @@
       "name": "主审查代理(Volcengine)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
-      "position": [1900, 400],
+      "position": [
+        1900,
+        400
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
@@ -320,7 +349,10 @@
       "name": "审查器故障转移检查",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [2100, 400],
+      "position": [
+        2100,
+        400
+      ],
       "parameters": {
         "conditions": {
           "string": [
@@ -340,7 +372,10 @@
       "name": "备用审查代理(DeepSeek)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
-      "position": [2300, 500],
+      "position": [
+        2300,
+        500
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://api.deepseek.com/v1/chat/completions",
@@ -390,7 +425,10 @@
       "name": "合并审查结果",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 2,
-      "position": [2500, 400],
+      "position": [
+        2500,
+        400
+      ],
       "parameters": {
         "mode": "combine",
         "mergeByFields": {
@@ -407,7 +445,10 @@
       "name": "处理审查结果",
       "type": "n8n-nodes-base.code",
       "typeVersion": 1,
-      "position": [2700, 400],
+      "position": [
+        2700,
+        400
+      ],
       "parameters": {
         "jsCode": "// 处理审查结果并决定是否批准代码\nconst response = $input.first().json;\nlet reviewFeedback = '';\nlet approved = false;\n\n// 从不同的API响应格式中提取审查反馈\nif (response.choices && response.choices[0]) {\n  reviewFeedback = response.choices[0].message.content;\n} else if (response.reply) {\n  reviewFeedback = response.reply;\n} else if (response.text) {\n  reviewFeedback = response.text;\n}\n\n// 检查代码是否被批准\nif (reviewFeedback.toUpperCase().includes('APPROVED')) {\n  approved = true;\n}\n\nreturn {\n  json: {\n    generated_code: $json.generated_code,\n    review_feedback: reviewFeedback,\n    code_approved: approved,\n    current_loop: $json.current_loop,\n    max_loops: $json.max_loops,\n    goal: $json.goal,\n    repo_owner: $json.repo_owner,\n    repo_name: $json.repo_name,\n    output_path: $json.output_path,\n    branch: $json.branch\n  }\n};"
       },
@@ -420,7 +461,10 @@
       "name": "代码批准检查",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [2900, 400],
+      "position": [
+        2900,
+        400
+      ],
       "parameters": {
         "conditions": {
           "boolean": [
@@ -440,7 +484,10 @@
       "name": "GitHub提交",
       "type": "n8n-nodes-base.github",
       "typeVersion": 1,
-      "position": [3100, 300],
+      "position": [
+        3100,
+        300
+      ],
       "parameters": {
         "resource": "file",
         "operation": "create",
@@ -468,7 +515,10 @@
       "name": "成功消息",
       "type": "n8n-nodes-base.set",
       "typeVersion": 1,
-      "position": [3300, 300],
+      "position": [
+        3300,
+        300
+      ],
       "parameters": {
         "values": {
           "string": [
@@ -501,7 +551,10 @@
       "name": "循环反馈",
       "type": "n8n-nodes-base.set",
       "typeVersion": 1,
-      "position": [3100, 500],
+      "position": [
+        3100,
+        500
+      ],
       "parameters": {
         "values": {
           "string": [
@@ -522,7 +575,10 @@
       "name": "达到最大循环次数",
       "type": "n8n-nodes-base.set",
       "typeVersion": 1,
-      "position": [700, 200],
+      "position": [
+        700,
+        200
+      ],
       "parameters": {
         "values": {
           "string": [
@@ -764,6 +820,7 @@
       ]
     }
   },
+  "name": "生产级AI编码流水线",
   "settings": {
     "executionOrder": "v1",
     "saveManualExecutions": true,
