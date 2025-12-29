@@ -448,7 +448,7 @@
         "repository": "={{ $json.repo_name }}",
         "filePath": "={{ $json.output_path }}",
         "fileContent": "={{ $json.generated_code }}",
-        "commitMessage": "=由AI编码流水线生成: {{ $json.goal }}",
+        "commitMessage": "=由AI编码流水线生成：{{ $json.goal }}",
         "additionalParameters": {
           "branch": "={{ $json.branch }}"
         }
@@ -507,7 +507,7 @@
           "string": [
             {
               "name": "goal",
-              "value": "={{ $json.goal + '\\n\\n审查反馈: ' + $json.review_feedback }}"
+              "value": "={{ $json.goal + '\\n\\n审查反馈：' + $json.review_feedback }}"
             }
           ]
         },
