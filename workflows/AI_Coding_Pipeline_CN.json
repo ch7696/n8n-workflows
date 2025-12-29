@@ -1,0 +1,799 @@
+{
+  "name": "生产级AI编码流水线",
+  "nodes": [
+    {
+      "id": "node-manual-trigger",
+      "name": "手动触发",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "parameters": {}
+    },
+    {
+      "id": "node-global-config",
+      "name": "全局配置",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [300, 300],
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "goal",
+              "value": "创建一个Python函数来处理用户输入"
+            },
+            {
+              "name": "repo_owner",
+              "value": "ch7696"
+            },
+            {
+              "name": "repo_name",
+              "value": "n8n-workflows"
+            },
+            {
+              "name": "output_path",
+              "value": "output/generated_code.py"
+            },
+            {
+              "name": "branch",
+              "value": "main"
+            }
+          ],
+          "number": [
+            {
+              "name": "max_loops",
+              "value": 3
+            },
+            {
+              "name": "current_loop",
+              "value": 0
+            }
+          ],
+          "boolean": [
+            {
+              "name": "code_approved",
+              "value": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "notes": "设置工作流的全局参数：最大循环次数、目标、仓库信息等",
+      "notesInFlow": true,
+      "color": "#FF6B6B"
+    },
+    {
+      "id": "node-loop-controller",
+      "name": "循环控制器",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.code_approved }}",
+              "value2": true
+            }
+          ],
+          "number": [
+            {
+              "value1": "={{ $json.current_loop }}",
+              "operation": "smaller",
+              "value2": "={{ $json.max_loops }}"
+            }
+          ]
+        },
+        "combineOperation": "any"
+      },
+      "notes": "检查代码是否已批准或是否达到最大循环次数",
+      "notesInFlow": true,
+      "color": "#9B59B6"
+    },
+    {
+      "id": "node-increment-loop",
+      "name": "增加循环计数",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [700, 400],
+      "parameters": {
+        "values": {
+          "number": [
+            {
+              "name": "current_loop",
+              "value": "={{ $json.current_loop + 1 }}"
+            }
+          ]
+        },
+        "options": {
+          "dotNotation": false
+        }
+      },
+      "notes": "增加当前循环计数器",
+      "notesInFlow": true,
+      "color": "#3498DB"
+    },
+    {
+      "id": "node-primary-coder",
+      "name": "主编码代理(DeepSeek)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [900, 400],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "deepseekApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "deepseek-coder"
+            },
+            {
+              "name": "messages",
+              "value": "={{ [{ \"role\": \"system\", \"content\": \"你是一个专业的Python代码生成专家。请根据用户需求生成高质量、可维护的代码。\" }, { \"role\": \"user\", \"content\": $json.goal }] }}"
+            },
+            {
+              "name": "temperature",
+              "value": 0.7
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "notes": "使用DeepSeek API生成代码",
+      "notesInFlow": true,
+      "color": "#1ABC9C",
+      "continueOnFail": true
+    },
+    {
+      "id": "node-coder-failover",
+      "name": "编码器故障转移检查",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1100, 400],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.error }}",
+              "operation": "isEmpty"
+            }
+          ]
+        }
+      },
+      "notes": "检查主编码器是否成功，失败则使用备用编码器",
+      "notesInFlow": true,
+      "color": "#E67E22"
+    },
+    {
+      "id": "node-fallback-coder",
+      "name": "备用编码代理(Minimax)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1300, 500],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.minimax.chat/v1/text/chatcompletion_v2",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "minimaxApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "abab6.5-chat"
+            },
+            {
+              "name": "messages",
+              "value": "={{ [{ \"role\": \"system\", \"content\": \"你是一个专业的Python代码生成专家。请根据用户需求生成高质量、可维护的代码。\" }, { \"role\": \"user\", \"content\": $json.goal }] }}"
+            },
+            {
+              "name": "temperature",
+              "value": 0.7
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "notes": "使用Minimax API作为备用编码器",
+      "notesInFlow": true,
+      "color": "#16A085"
+    },
+    {
+      "id": "node-merge-coder",
+      "name": "合并编码结果",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [1500, 400],
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {
+          "values": []
+        },
+        "options": {}
+      },
+      "notes": "合并主编码器和备用编码器的输出",
+      "notesInFlow": true,
+      "color": "#95A5A6"
+    },
+    {
+      "id": "node-extract-code",
+      "name": "提取生成的代码",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1700, 400],
+      "parameters": {
+        "jsCode": "// 从AI响应中提取代码\nconst response = $input.first().json;\nlet generatedCode = '';\n\n// 尝试从不同的API响应格式中提取代码\nif (response.choices && response.choices[0]) {\n  generatedCode = response.choices[0].message.content;\n} else if (response.reply) {\n  generatedCode = response.reply;\n} else if (response.text) {\n  generatedCode = response.text;\n}\n\n// 提取代码块（如果被markdown包裹）\nconst codeBlockMatch = generatedCode.match(/```(?:python)?\\n([\\s\\S]*?)\\n```/);\nif (codeBlockMatch) {\n  generatedCode = codeBlockMatch[1];\n}\n\nreturn {\n  json: {\n    generated_code: generatedCode.trim(),\n    goal: $json.goal,\n    current_loop: $json.current_loop,\n    max_loops: $json.max_loops,\n    repo_owner: $json.repo_owner,\n    repo_name: $json.repo_name,\n    output_path: $json.output_path,\n    branch: $json.branch\n  }\n};"
+      },
+      "notes": "从AI响应中提取并清理生成的代码",
+      "notesInFlow": true,
+      "color": "#34495E"
+    },
+    {
+      "id": "node-primary-reviewer",
+      "name": "主审查代理(Volcengine)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1900, 400],
+      "parameters": {
+        "method": "POST",
+        "url": "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "volcengineApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "ep-20241228153526-xpfx5"
+            },
+            {
+              "name": "messages",
+              "value": "={{ [{ \"role\": \"system\", \"content\": \"你是一个专业的代码审查专家。请审查以下代码的质量、安全性和最佳实践。如果代码符合标准，请回复'APPROVED'，否则提供详细的改进建议。\" }, { \"role\": \"user\", \"content\": \"目标: \" + $json.goal + \"\\n\\n生成的代码:\\n\" + $json.generated_code }] }}"
+            },
+            {
+              "name": "temperature",
+              "value": 0.3
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "notes": "使用Volcengine API审查生成的代码",
+      "notesInFlow": true,
+      "color": "#8E44AD",
+      "continueOnFail": true
+    },
+    {
+      "id": "node-reviewer-failover",
+      "name": "审查器故障转移检查",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2100, 400],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.error }}",
+              "operation": "isEmpty"
+            }
+          ]
+        }
+      },
+      "notes": "检查主审查器是否成功，失败则使用备用审查器",
+      "notesInFlow": true,
+      "color": "#E74C3C"
+    },
+    {
+      "id": "node-fallback-reviewer",
+      "name": "备用审查代理(DeepSeek)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2300, 500],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "deepseekApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "deepseek-coder"
+            },
+            {
+              "name": "messages",
+              "value": "={{ [{ \"role\": \"system\", \"content\": \"你是一个专业的代码审查专家。请审查以下代码的质量、安全性和最佳实践。如果代码符合标准，请回复'APPROVED'，否则提供详细的改进建议。\" }, { \"role\": \"user\", \"content\": \"目标: \" + $json.goal + \"\\n\\n生成的代码:\\n\" + $json.generated_code }] }}"
+            },
+            {
+              "name": "temperature",
+              "value": 0.3
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "notes": "使用DeepSeek API作为备用审查器",
+      "notesInFlow": true,
+      "color": "#C0392B"
+    },
+    {
+      "id": "node-merge-reviewer",
+      "name": "合并审查结果",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [2500, 400],
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {
+          "values": []
+        },
+        "options": {}
+      },
+      "notes": "合并主审查器和备用审查器的输出",
+      "notesInFlow": true,
+      "color": "#7F8C8D"
+    },
+    {
+      "id": "node-process-review",
+      "name": "处理审查结果",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [2700, 400],
+      "parameters": {
+        "jsCode": "// 处理审查结果并决定是否批准代码\nconst response = $input.first().json;\nlet reviewFeedback = '';\nlet approved = false;\n\n// 从不同的API响应格式中提取审查反馈\nif (response.choices && response.choices[0]) {\n  reviewFeedback = response.choices[0].message.content;\n} else if (response.reply) {\n  reviewFeedback = response.reply;\n} else if (response.text) {\n  reviewFeedback = response.text;\n}\n\n// 检查代码是否被批准\nif (reviewFeedback.toUpperCase().includes('APPROVED')) {\n  approved = true;\n}\n\nreturn {\n  json: {\n    generated_code: $json.generated_code,\n    review_feedback: reviewFeedback,\n    code_approved: approved,\n    current_loop: $json.current_loop,\n    max_loops: $json.max_loops,\n    goal: $json.goal,\n    repo_owner: $json.repo_owner,\n    repo_name: $json.repo_name,\n    output_path: $json.output_path,\n    branch: $json.branch\n  }\n};"
+      },
+      "notes": "分析审查反馈并确定是否批准代码",
+      "notesInFlow": true,
+      "color": "#2C3E50"
+    },
+    {
+      "id": "node-approval-check",
+      "name": "代码批准检查",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2900, 400],
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.code_approved }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "notes": "检查代码是否已被批准以继续提交",
+      "notesInFlow": true,
+      "color": "#27AE60"
+    },
+    {
+      "id": "node-github-commit",
+      "name": "GitHub提交",
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1,
+      "position": [3100, 300],
+      "parameters": {
+        "resource": "file",
+        "operation": "create",
+        "owner": "={{ $json.repo_owner }}",
+        "repository": "={{ $json.repo_name }}",
+        "filePath": "={{ $json.output_path }}",
+        "fileContent": "={{ $json.generated_code }}",
+        "commitMessage": "=由AI编码流水线生成: {{ $json.goal }}",
+        "additionalParameters": {
+          "branch": "={{ $json.branch }}"
+        }
+      },
+      "credentials": {
+        "githubOAuth2Api": {
+          "id": "githubOAuth2Api",
+          "name": "GitHub OAuth2"
+        }
+      },
+      "notes": "将生成的代码提交到GitHub仓库 ch7696/n8n-workflows",
+      "notesInFlow": true,
+      "color": "#F39C12"
+    },
+    {
+      "id": "node-success-message",
+      "name": "成功消息",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [3300, 300],
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "成功"
+            },
+            {
+              "name": "message",
+              "value": "=代码已成功生成并提交到GitHub"
+            },
+            {
+              "name": "file_path",
+              "value": "={{ $json.output_path }}"
+            },
+            {
+              "name": "loops_used",
+              "value": "={{ $json.current_loop }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "notes": "显示成功完成的消息",
+      "notesInFlow": true,
+      "color": "#2ECC71"
+    },
+    {
+      "id": "node-loop-back",
+      "name": "循环反馈",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [3100, 500],
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "goal",
+              "value": "={{ $json.goal + '\\n\\n审查反馈: ' + $json.review_feedback }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "notes": "将审查反馈添加到目标中以改进下一次迭代",
+      "notesInFlow": true,
+      "color": "#D35400"
+    },
+    {
+      "id": "node-max-loops-reached",
+      "name": "达到最大循环次数",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [700, 200],
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "失败"
+            },
+            {
+              "name": "message",
+              "value": "=达到最大循环次数({{ $json.max_loops }})，未能生成批准的代码"
+            },
+            {
+              "name": "last_feedback",
+              "value": "={{ $json.review_feedback || '无审查反馈' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "notes": "达到最大循环次数时的错误处理",
+      "notesInFlow": true,
+      "color": "#E74C3C"
+    }
+  ],
+  "connections": {
+    "手动触发": {
+      "main": [
+        [
+          {
+            "node": "全局配置",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "全局配置": {
+      "main": [
+        [
+          {
+            "node": "循环控制器",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "循环控制器": {
+      "main": [
+        [
+          {
+            "node": "达到最大循环次数",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "增加循环计数",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "增加循环计数": {
+      "main": [
+        [
+          {
+            "node": "主编码代理(DeepSeek)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "主编码代理(DeepSeek)": {
+      "main": [
+        [
+          {
+            "node": "编码器故障转移检查",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "编码器故障转移检查": {
+      "main": [
+        [
+          {
+            "node": "合并编码结果",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "备用编码代理(Minimax)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "备用编码代理(Minimax)": {
+      "main": [
+        [
+          {
+            "node": "合并编码结果",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "合并编码结果": {
+      "main": [
+        [
+          {
+            "node": "提取生成的代码",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "提取生成的代码": {
+      "main": [
+        [
+          {
+            "node": "主审查代理(Volcengine)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "主审查代理(Volcengine)": {
+      "main": [
+        [
+          {
+            "node": "审查器故障转移检查",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "审查器故障转移检查": {
+      "main": [
+        [
+          {
+            "node": "合并审查结果",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "备用审查代理(DeepSeek)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "备用审查代理(DeepSeek)": {
+      "main": [
+        [
+          {
+            "node": "合并审查结果",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "合并审查结果": {
+      "main": [
+        [
+          {
+            "node": "处理审查结果",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "处理审查结果": {
+      "main": [
+        [
+          {
+            "node": "代码批准检查",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "代码批准检查": {
+      "main": [
+        [
+          {
+            "node": "GitHub提交",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "循环反馈",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub提交": {
+      "main": [
+        [
+          {
+            "node": "成功消息",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "循环反馈": {
+      "main": [
+        [
+          {
+            "node": "循环控制器",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": null,
+    "timezone": "Asia/Shanghai",
+    "executionTimeout": 3600,
+    "maxExecutions": 10,
+    "retryOnFail": true,
+    "retryCount": 2
+  },
+  "meta": {
+    "instanceId": "ai-coding-pipeline-cn",
+    "versionId": "1.0.0",
+    "createdAt": "2025-12-29T04:55:00.000Z",
+    "updatedAt": "2025-12-29T04:55:00.000Z",
+    "owner": "ch7696",
+    "license": "MIT",
+    "category": "ai-automation",
+    "status": "active",
+    "priority": "high",
+    "environment": "production"
+  },
+  "tags": [
+    "AI",
+    "编码",
+    "自动化",
+    "生产级",
+    "故障转移",
+    "循环控制"
+  ],
+  "description": "生产级AI编码流水线：使用多个AI代理（DeepSeek、Minimax、Volcengine）生成和审查代码，具有故障转移和循环逻辑，自动提交到GitHub仓库 ch7696/n8n-workflows 的 output/generated_code.py 路径。所有节点名称、注释和系统提示均使用中文。"
+}
